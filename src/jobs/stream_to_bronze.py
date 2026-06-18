@@ -13,7 +13,7 @@ def main():
     bronze_dir = os.path.join(project_root, "data_lake", "bronze")
     checkpoint_dir = os.path.join(project_root, "data_lake", "checkpoints", "bronze")
 
-    print("\nInitializing local Spark session\n")
+    print("\nInitializing local Spark session for bronze\n")
 
     spark = (SparkSession.builder
              .appName("CustomerFeedbackBronzeStraming")
@@ -59,7 +59,7 @@ def main():
     try:
         query.awaitTermination()
     except (KeyboardInterrupt, Exception):
-        print("\n Shutdown received. Stopping now.\n")
+        print("\n Shutdown received. Stopping Bronze streaming resources now.\n")
 
         try:
             #stops streaming thread from reading files
@@ -70,7 +70,7 @@ def main():
         except Exception:
             pass
 
-        print("\nSession stopped safely.")
+        print("\nBronze Session stopped safely.")
         sys.exit(0)
 
 if __name__ == "__main__":
