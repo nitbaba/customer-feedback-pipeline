@@ -50,6 +50,22 @@ resource "aws_security_group" "rds_sg" {
     }
 }
 
+resource "aws_secretsmanager_secret" "db_secret" {
+    name                        = "${var.project_name}-${var.environment}-db-credentials"
+    description                 = "Managed relational credentials for feddback analytics"
+    recovery_window_in_days   = 0 #Immediate deletion if stack is destroyed during testing
+}
+
+#Sensitive config keys as encrypted JSON payload
+resource "aws_secretsmanager_secret_version" "db_secret_val" {
+    secret_id       = aws_secretsmanager_secret.db_secret.id
+    secret_string   = jsonencode({
+        username = aws_db_instance.serving_sink.username
+        password = var.db_password
+        endpoint = aws_db_instance.serving_sink.endpoint
+    })
+}
+
 #===============================================
 # 3. ANALYTICS SERVING SINK (AWS RDS PostgreSQL)
 #===============================================
