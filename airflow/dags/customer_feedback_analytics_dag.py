@@ -5,7 +5,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 
-PROJECT_ROOT = "~/repos/customer-feedback-pipeline"
+PROJECT_ROOT = os.path.expanduser("~/repos/customer-feedback-pipeline")
 SILVER_DATA_DIR = os.path.join(PROJECT_ROOT, "data_lake/silver")
 ANALYTICS_JOB_PATH = os.path.join(PROJECT_ROOT, "src/jobs/historical_analytics.py")
 VENV_PYTHON = os.path.join(PROJECT_ROOT, ".venv/bin/python3")
@@ -54,7 +54,7 @@ with DAG(
 
     pipeline_execution_complete = BashOperator(
         task_id="log_pipeline_completion_status",
-        bash_command="echo 'Medallion pipeline execution completed and synced success."
+        bash_command="echo 'Medallion pipeline execution completed and synced success.'"
     )
 
     verify_silver_data >> run_gold_batch_job >> pipeline_execution_complete
