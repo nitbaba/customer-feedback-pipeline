@@ -89,3 +89,28 @@ resource "aws_db_instance" "serving_sink" {
         Environment = var.environment
     }
 }
+
+#===============================================
+# 4. DASHBOARD CREDENTIALS MANAGEMENT
+#===============================================
+resource "random_password" "dashboard_reader_pwd" {
+    length           = 24
+    special          = true
+    override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "aws_secretsmanager_secret" "dashboard_secret" {
+    name                    = "${var.project_name}-${var.environment}-dashboard-credentials"
+    description             = "Read only db credentials for BI visualization tools"
+    recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "dashboard_secret_val" {
+    secret_id       = aws_secretsmanager_secret.dashboard_secret.id
+    secret_string   = jsonencode({
+        username = "dashboard_reader"
+        password = random_password.dashboard_reader_pwd.result
+        endpoint = aws_db_instance.serving_sink.endpoint
+        database = "feedback_analytics"
+    })
+}
