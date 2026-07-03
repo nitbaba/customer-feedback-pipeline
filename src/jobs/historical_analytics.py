@@ -50,6 +50,9 @@ def main():
              .appName("CustomerFeedbackGoldBatch")
              .master("local[4]")
              .config("spark.jars.packages", "org.postgresql:postgresql:42.6.0")
+             .config("spark.sql.shuffle.partitions", "4")
+             .config("spark.sql.adaptive.enabled", "true")
+             .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
              .getOrCreate())
     spark.sparkContext.setLogLevel("WARN")
 
@@ -81,8 +84,10 @@ def main():
         "driver": "org.postgresql.Driver"
     }
 
+    optimized_gold_df = gold_metrics_df.coalesce(1)
+
     #Enforce Idempotency: Overwrite previous batch evals to avoid deuplication errors
-    (gold_metrics_df.write
+    (optimized_gold_df.write
      .jdbc(url=jdbc_url, table="product_performance_metrics", mode="overwrite", properties=connection_properties))
 
     print(f"\n Gold layer metrics successfully published. Ending cluster compute safely.")
