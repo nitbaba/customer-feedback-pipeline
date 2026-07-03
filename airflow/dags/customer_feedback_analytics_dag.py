@@ -8,6 +8,7 @@ from airflow.operators.bash import BashOperator
 PROJECT_ROOT = os.path.expanduser("~/repos/customer-feedback-pipeline")
 SILVER_DATA_DIR = os.path.join(PROJECT_ROOT, "data_lake/silver")
 ANALYTICS_JOB_PATH = os.path.join(PROJECT_ROOT, "src/jobs/historical_analytics.py")
+MIGRATION_SCRIPT_PATH = os.path.join(PROJECT_ROOT, "src/utils/db_migration.py")
 VENV_PYTHON = os.path.join(PROJECT_ROOT, ".venv/bin/python3")
 
 default_args = {
@@ -47,6 +48,11 @@ with DAG(
         python_callable=check_silver_layer_has_data,
     )
 
+    restore_permissions = BashOperator(
+        task_id="restore_dashboard_permissions",
+        bash_command=f"{VENV_PYTHON} {MIGRATION_SCRIPT_PATH}",
+    )
+
     run_gold_batch_job = BashOperator(
         task_id="execute_historical_analytics_sync",
         bash_command=f"{VENV_PYTHON} {ANALYTICS_JOB_PATH}",
@@ -57,4 +63,4 @@ with DAG(
         bash_command="echo 'Medallion pipeline execution completed and synced success.'"
     )
 
-    verify_silver_data >> run_gold_batch_job >> pipeline_execution_complete
+    verify_silver_data >> run_gold_batch_job >> restore_permissions >> pipeline_execution_complete
