@@ -48,6 +48,14 @@ resource "aws_security_group" "rds_sg" {
         protocol    = "-1"
         cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
     }
+
+    egress {
+        description = "Read-only for BI dashboard analytics"
+        from_port   = 5432
+        to_port     = 5432
+        protocol    = "tcp"
+        cidr_blocks = ["98.89.137.0/24"]
+    }
 }
 
 resource "aws_secretsmanager_secret" "db_secret" {
@@ -94,9 +102,9 @@ resource "aws_db_instance" "serving_sink" {
 # 4. DASHBOARD CREDENTIALS MANAGEMENT
 #===============================================
 resource "random_password" "dashboard_reader_pwd" {
-    length           = 24
-    special          = true
-    override_special = "!#$%&*()-_=+[]{}<>:?"
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}?:"
 }
 
 resource "aws_secretsmanager_secret" "dashboard_secret" {

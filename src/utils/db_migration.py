@@ -26,7 +26,7 @@ def run_migrations():
     admin_endpoint, admin_password = get_admin_credentials()
     host, port = admin_endpoint.split(":")
 
-    dashboard_secret = get_secret("customer-feedback-pipeline-dev-db-credentials")
+    dashboard_secret = get_secret("customer-feedback-pipeline-dev-dashboard-credentials")
     dashboard_password = dashboard_secret["password"]
 
     print(f"\nConnecting to relational sink at {host} as admin")
@@ -75,7 +75,7 @@ def run_migrations():
     
     cursor.execute("SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_reader';")
     if not cursor.fetchone():
-        cursor.execute(f"\nCREATE ROLE dashboard_reader WITH LOGIN PASSWORD %s;", (dashboard_password,))
+        cursor.execute(f"CREATE ROLE dashboard_reader WITH LOGIN PASSWORD %s;", (dashboard_password,))
     else:
         cursor.execute(f"ALTER ROLE dashboard_reader WITH PASSWORD %s;", (dashboard_password,))
 
