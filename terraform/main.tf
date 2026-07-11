@@ -22,6 +22,58 @@ resource "aws_s3_object" "lake_tiers" {
     key      = each.value
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "lake_ttl_policies" {
+    bucket = aws_s3_bucket.data_lake.id
+
+    #Rule 1: Auto-purge temporary streaming checkpoints and raw landing drops after 7 days
+    rule {
+        id      = "purge-ephemeral-staging-data"
+        status  = "Enabled"
+
+        filter {
+            prefix = "checkpoints/"
+        }
+
+        expiration {
+            days = 7
+        }
+
+        abort_incomplete_multipart_upload {
+            days_after_initiation = 7
+        }
+    }
+
+    #Rule 2: Move historical Bronze data to cold-storage after 30 days
+    rule {
+        id      = "tier-bronze-cold-storage"
+        status  = "Enabled"
+
+        filter {            
+            prefix = "bronze/"            
+        }
+
+        transition {
+            days            = 30
+            storage_class   = "INTELLIGENT_TIERING"
+        }
+    }
+
+    #Rule 3: Move historical Silver data to cold-storage after 30 days
+    rule {
+        id      = "tier-silver-cold-storage"
+        status  = "Enabled"
+
+        filter {
+            prefix = "silver/"
+        }
+
+        transition {
+            days            = 30
+            storage_class   = "INTELLIGENT_TIERING"
+        }
+    }
+}
+
 #===============================================
 # 2. NETWORKING & SECURITY GROUPS
 #===============================================
