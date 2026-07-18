@@ -1,0 +1,7 @@
+black==24.4.2
+flake8==7.0.0
+pytest==8.2.1
+pytest-spark==0.6.0
+pyspark==3.5.1
+psycopg2-binary==2.9.9
+boddle==0.2.1
