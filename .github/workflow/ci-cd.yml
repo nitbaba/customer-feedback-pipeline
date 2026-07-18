@@ -1,0 +1,40 @@
+name: Data Pipeline CI/CD Quality Gate
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  quality-assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python Environment (3.12)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Linting and Testing Suites
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black pytest pyspark psycopg2-binary boddle
+
+      - name: Enforce Code Formatting (Black)
+        run: |
+          black --check src/ tests/
+
+      - name: Enforce Code Quality and Structural Integrity (Flake8)
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. Max-line-length matching default PEP8 profiles.
+          flake8 src/ tests/ --count --max-line-length=127 --statistics
+
+      - name: Execute PySpark Pipeline Test Matrices
+        run: |
+          pytest tests/
