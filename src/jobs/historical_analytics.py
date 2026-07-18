@@ -2,10 +2,10 @@ import os
 import sys
 import json
 import boto3
-from botocore.exceptions import ClientError
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, avg, count
 import psycopg2
+from psycopg2 import sql
 
 def get_db_credentials():
     """
@@ -32,7 +32,6 @@ def get_db_credentials():
         get_secret_value_response = client.get_secret_value(SecretId=secret_name)
         secret = json.loads(get_secret_value_response["SecretString"])
         
-        # Clean endpoint string to remove port numbers if appended by Terraform exports
         db_endpoint = secret["endpoint"].split(":")[0]
         return secret["username"], secret["password"], db_endpoint, database
     except Exception as e:
@@ -44,7 +43,7 @@ def main():
     project_root = os.path.abspath(os.path.join(script_dir, "../../"))
     silver_dir = os.path.join(project_root, "data_lake", "silver")
 
-    # 1. Resolve connectivity properties
+    # Resolve connectivity properties
     db_user, db_password, db_endpoint, db_name = get_db_credentials()
     jdbc_url = f"jdbc:postgresql://{db_endpoint}:5432/{db_name}"
 
@@ -56,7 +55,7 @@ def main():
              .getOrCreate())
     spark.sparkContext.setLogLevel("WARN")
 
-    # 2. Extract dataset from Silver parquet tier
+    # Extract dataset from Silver parquet tier
     print(f"\nReading transformed data from Silver layer: {silver_dir}")
     if not os.path.exists(silver_dir) or not os.listdir(silver_dir):
         print("Silver directory is empty or missing. Exiting batch job early.")
@@ -65,7 +64,7 @@ def main():
 
     silver_df = spark.read.parquet(silver_dir)
 
-    # 3. Compute Gold aggregates
+    # Compute Gold aggregates
     print("\nRolling historical aggregates aka Gold tier.")
     gold_metrics_df = (silver_df
                        .groupBy("product_id")
@@ -74,22 +73,26 @@ def main():
                            avg("urgency_score").alias("avg_urgency")
                        ))
 
-    # 4. Write data to a staging table in PostgreSQL using Spark JDBC
     staging_table = "product_performance_metrics_staging"
     target_table = "product_performance_metrics"
 
     print(f"\nSyncing Gold metrics staging records to AWS RDS PostgreSQL: {db_endpoint}")
-    (gold_metrics_df.write
-     .format("jdbc")
-     .option("url", jdbc_url)
-     .option("dbtable", f"public.{staging_table}")
-     .option("user", db_user)
-     .option("password", db_password)
-     .option("driver", "org.postgresql.Driver")
-     .mode("overwrite")
-     .save())
+    
+    connection_properties = {
+        "user": db_user,
+        "password": db_password,
+        "driver": "org.postgresql.Driver"
+    }
 
-    # 5. Execute self-healing schema patch and transaction upsert via psycopg2
+    (gold_metrics_df.write
+     .jdbc(
+         url=jdbc_url, 
+         table=f"public.{staging_table}", 
+         mode="overwrite", 
+         properties=connection_properties
+     ))
+
+    # Execute self-healing schema patch and transaction upsert via psycopg2
     try:
         conn = psycopg2.connect(
             host=db_endpoint,
@@ -103,26 +106,26 @@ def main():
         with conn.cursor() as cursor:
             print("Verifying target table structure and repairing schema drifts...")
             
-            # Self-healing Check A: Create target table if an upstream Spark overwrite erased it
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS public.{target_table} (
+            create_table_query = sql.SQL("""
+                CREATE TABLE IF NOT EXISTS {target} (
                     product_id VARCHAR(255) PRIMARY KEY,
                     total_reviews BIGINT,
                     avg_urgency DOUBLE PRECISION,
                     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-            """)
+            """).format(target=sql.Identifier(target_table))
+            cursor.execute(create_table_query)
 
-            # Self-healing Check B: Inject tracking column back if dropped by previous jobs
-            cursor.execute(f"""
-                ALTER TABLE public.{target_table} 
+            alter_table_query = sql.SQL("""
+                ALTER TABLE {target} 
                 ADD COLUMN IF NOT EXISTS last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-            """)
+            """).format(target=sql.Identifier(target_table))
+            cursor.execute(alter_table_query)
             conn.commit()
 
-            # Execute transactional Upsert from staging back to main metrics target
-            upsert_sql = f"""
-            INSERT INTO public.{target_table} (
+            # Safely compose transactional Upsert query block
+            upsert_sql = sql.SQL("""
+            INSERT INTO {target} (
                 product_id, 
                 total_reviews, 
                 avg_urgency, 
@@ -133,22 +136,25 @@ def main():
                 total_reviews, 
                 avg_urgency, 
                 CURRENT_TIMESTAMP
-            FROM public.{staging_table}
+            FROM {staging}
             ON CONFLICT (product_id) 
             DO UPDATE SET 
                 total_reviews = EXCLUDED.total_reviews,
                 avg_urgency = EXCLUDED.avg_urgency,
                 last_updated_at = CURRENT_TIMESTAMP;
-            """
+            """).format(
+                target=sql.Identifier(target_table),
+                staging=sql.Identifier(staging_table)
+            )
 
-            print("Performing UPSERT operation from staging layer.")
+            print("Performing secure UPSERT operation from staging layer.")
             cursor.execute(upsert_sql)
             
-            # Clean up the staging layer table to optimize database storage space
-            cursor.execute(f"DROP TABLE IF EXISTS public.{staging_table};")
+            drop_query = sql.SQL("DROP TABLE IF EXISTS {staging};").format(staging=sql.Identifier(staging_table))
+            cursor.execute(drop_query)
             
             conn.commit()
-            print("Gold layer metrics synced flawlessly and staging elements cleared.")
+            print("Gold layer metrics securely synced and staging elements cleared.")
 
     except Exception as e:
         if 'conn' in locals() and conn:

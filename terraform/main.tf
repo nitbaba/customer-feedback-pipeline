@@ -88,26 +88,27 @@ resource "aws_security_group" "rds_sg" {
 
     #Inbound rule allowing PostgreSQL access from specific IP or security group
     ingress {
+        description = "Allow bounded PostgreSQL traffic from desingate compute"
         from_port   = 5432
         to_port     = 5432
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
-    }
 
-    #BI dashboard analytics ingress
-    ingress {
-        description = "Read-only for BI dashboard analytics"
-        from_port   = 5432
-        to_port     = 5432
-        protocol    = "tcp"
-        cidr_blocks = ["98.89.137.0/24"]
+        security_groups = [
+            aws_security_group.airflow_runned_sg.id,
+            aws_security_group.emr_engine_sg.id
+        ]
     }
     
     egress {
         from_port   = 0
         to_port     = 0
         protocol    = "-1"
-        cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    tags = {
+        Environment = "Development"
+        Pipeline    = "CustomerFeedbackAnalytics"
     }
     
 }
