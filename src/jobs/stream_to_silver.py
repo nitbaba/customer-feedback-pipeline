@@ -12,7 +12,7 @@ from pyspark.sql.types import (
 )
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from utils.llm_triage import call_mock_llm
+from utils.llm_triage import call_mock_llm  # noqa: E402
 
 
 def main():
