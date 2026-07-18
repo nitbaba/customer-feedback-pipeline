@@ -34,9 +34,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "lake_ttl_policies" {
             prefix = "checkpoints/"
         }
 
-        expiration {
-            days = 7
-        }
+        #expiration {
+        #    days = 7
+        #}
 
         abort_incomplete_multipart_upload {
             days_after_initiation = 7
@@ -94,20 +94,22 @@ resource "aws_security_group" "rds_sg" {
         cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
     }
 
-    egress {
-        from_port   = 0
-        to_port     = 0
-        protocol    = "-1"
-        cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
-    }
-
-    egress {
+    #BI dashboard analytics ingress
+    ingress {
         description = "Read-only for BI dashboard analytics"
         from_port   = 5432
         to_port     = 5432
         protocol    = "tcp"
         cidr_blocks = ["98.89.137.0/24"]
     }
+    
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"] #TODO open for local testing, tighten when deployed
+    }
+    
 }
 
 resource "aws_secretsmanager_secret" "db_secret" {

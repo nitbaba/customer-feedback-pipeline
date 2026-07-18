@@ -88,23 +88,18 @@ def main():
              .format("parquet")
              .outputMode("append")
              .option("checkpointLocation", checkpoint_dir)
+             .trigger(availableNow=True)
              .start(silver_dir))
 
     try:
         query.awaitTermination()
-    except (KeyboardInterrupt):
-        print("\n Shutdown received. Stopping Silver streaming resources now.\n")
-        try:
-            #stops streaming thread from reading files
-            query.stop()
-
-            #stop spark engine cluster that was spun up
-            spark.stop()
-        except Exception:
-            pass
-
-        print("\nSilver session stopped safely.")
+        print("\nSilver micro-batch execution completed successfully.")
+        spark.stop()
         sys.exit(0)
+    except Exception as e:
+        print(f"\nStream tracking execution failed: {str(e)}")
+        spark.stop()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
