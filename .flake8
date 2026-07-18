@@ -4,7 +4,7 @@ max-line-length = 127
 # W291: trailing whitespace (benign)
 # F541: f-string without placeholders (benign logging/strings)
 # F401: imported but unused (we can ignore or clean, but keeping safe for prototyping)
-ignore = E203, W291, F541, F401, F811, E402
+ignore = E203, W291, F541, F401, F811, E231
 exclude =
     .git,
     __pycache__,
