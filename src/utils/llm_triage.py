@@ -1,17 +1,18 @@
 import json
 import time
 
+
 def call_mock_llm(review_text: str) -> str:
     """
     Simulates LLM api response categorizing a support ticket or customer product review
     """
 
-    #network latency
+    # network latency
     time.sleep(0.1)
 
     text_lower = review_text.lower()
 
-    #triage rules simulating smart parsing
+    # triage rules simulating smart parsing
     if "battery" in text_lower or "dies" in text_lower or "broke" in text_lower:
         sentiment = "Negative"
         urgency_score = 5
@@ -28,7 +29,7 @@ def call_mock_llm(review_text: str) -> str:
     result = {
         "sentiment": sentiment,
         "urgency_score": urgency_score,
-        "summary": summary
+        "summary": summary,
     }
 
     return json.dumps(result)
