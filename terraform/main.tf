@@ -81,6 +81,42 @@ data "aws_vpc" "default" {
     default = true
 }
 
+resource "aws_security_group" "airflow_runned_sg" {
+    name        = "${var.project_name}-${var.environment}-airflow-sg"
+    description = "Security group for Airflow engine to access relational data sinks"
+    vpc_id      = data.aws_vpc.default.id
+
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    tags = {
+        Name        = "${var.project_name}-${var.environment}-airflow-sg"
+        Environment = var.environment
+    }
+}
+
+resource "aws_security_group" "emr_engine_sg" {
+    name        = "${var.project_name}-${var.environment}-emr-sg"
+    description = "Security group for transient compute cluster nodes"
+    vpc_id      = data.aws_vpc.default.id
+
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    tags = {
+        Name        = "${var.project_name}-${var.environment}-emr-sg"
+        Environment = var.environment
+    }
+}
+
 resource "aws_security_group" "rds_sg" {
     name        = "${var.project_name}-${var.environment}-rds-sg"
     description = "Controls inbound database traffic from local engines"
@@ -110,23 +146,6 @@ resource "aws_security_group" "rds_sg" {
         Environment = "Development"
         Pipeline    = "CustomerFeedbackAnalytics"
     }
-    
-}
-
-resource "aws_secretsmanager_secret" "db_secret" {
-    name                        = "${var.project_name}-${var.environment}-db-credentials"
-    description                 = "Managed relational credentials for feddback analytics"
-    recovery_window_in_days   = 0 #Immediate deletion if stack is destroyed during testing
-}
-
-#Sensitive config keys as encrypted JSON payload
-resource "aws_secretsmanager_secret_version" "db_secret_val" {
-    secret_id       = aws_secretsmanager_secret.db_secret.id
-    secret_string   = jsonencode({
-        username = aws_db_instance.serving_sink.username
-        password = var.db_password
-        endpoint = aws_db_instance.serving_sink.endpoint
-    })
 }
 
 #===============================================

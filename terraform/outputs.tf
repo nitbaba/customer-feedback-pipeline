@@ -9,11 +9,11 @@ output "rds_endpoint" {
 }
 
 output "emr_master_security_group_id" {
-  value       = aws_security_group.emr_master.id  # Replace with your actual resource identifier
+  value       = aws_security_group.emr_engine_sg.id
   description = "The security group ID assigned to the EMR Primary node"
 }
 
-output "emr_slave_security_group_id" {
-  value       = aws_security_group.emr_slave.id   # Replace with your actual resource identifier
-  description = "The security group ID assigned to EMR Core and Task nodes"
-}
+#output "emr_slave_security_group_id" {
+#  value       = aws_security_group.emr_slave.id
+#  description = "The security group ID assigned to EMR Core and Task nodes"
+#}
