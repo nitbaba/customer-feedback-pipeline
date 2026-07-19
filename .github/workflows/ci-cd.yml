@@ -2,12 +2,13 @@ name: Data Pipeline CI/CD Quality Gate
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master ]
 
 jobs:
   quality-assurance:
+    name: Lint, Test, and Validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository Codebase
@@ -46,10 +47,10 @@ jobs:
           pytest tests/
   
   deploy:
-    name: Deploy PySpark Jobs to S3
+    name: Deploy Artifacts to AWS S3
     needs: [quality-assurance]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
     permissions:
       id-token: write
@@ -59,7 +60,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -69,3 +70,7 @@ jobs:
       - name: Deploy Scripts to S3 Data Lake
         run: |
           aws s3 sync src/jobs/ s3://${{ vars.S3_CODE_BUCKET }}/jobs/ --delete
+
+      - name: Deploy Cloud Orchestration to Airflow DAGs
+        run: |
+          aws s3 sync airflow/dags/ s3://${{ vars.S3_AIRFLOW_DAGS_BUCKET }}/dags/ --delete

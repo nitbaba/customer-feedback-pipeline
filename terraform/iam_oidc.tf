@@ -25,7 +25,7 @@ data "aws_iam_policy_document" "github_allow" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:nitbaba/customer-feedback-pipeline:ref:refs/heads/main"]
+      values   = ["repo:nitbaba/customer-feedback-pipeline:ref:refs/heads/master"]
     }
   }
 }
