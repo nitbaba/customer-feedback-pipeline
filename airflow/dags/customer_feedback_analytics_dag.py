@@ -4,11 +4,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 
-PROJECT_ROOT = os.path.expanduser("~/repos/customer-feedback-pipeline")
-SILVER_DATA_DIR = os.path.join(PROJECT_ROOT, "data_lake/silver")
-ANALYTICS_JOB_PATH = os.path.join(PROJECT_ROOT, "src/jobs/historical_analytics.py")
-SILVER_JOB_PATH = os.path.join(PROJECT_ROOT, "src/jobs/stream_to_silver.py")
-VENV_PYTHON = os.path.join(PROJECT_ROOT, ".venv/bin/python3")
+S3_CODE_BUCKET = "s3://customer-feedback-pipeline-dev-lake"
 
 default_args = {
     "owner": "data_engineering",
@@ -16,8 +12,36 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
-    "retries_delay": timedelta(minutes=2),
+    "retry_delay": timedelta(minutes=2),
 }
+
+# Spark Step Definitions for the EMR Cluster
+SPARK_STEPS = [
+    {
+        "Name": "Execute Silver Stream Sync",
+        "ActionOnFailure": "CONTINUE",
+        "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+                "spark-submit",
+                "--deploy-mode", "cluster",
+                f"{S3_CODE_BUCKET}/jobs/stream_to_silver.py"
+            ],
+        },
+    },
+    {
+        "Name": "Execute Historical Analytics Sync",
+        "ActionOnFailure": "CONTINUE",
+        "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+                "spark-submit",
+                "--deploy-mode", "cluster",
+                f"{S3_CODE_BUCKET}/jobs/historical_analytics.py"
+            ],
+        },
+    },
+]
 
 with DAG(
     "customer_feedback_medallion_pipeline",
@@ -29,26 +53,20 @@ with DAG(
     tags=["medallion", "analytics", "spark"],
 ) as dag:
 
-    # Task 1: Explicitly process the micro-batch ingestion from Bronze to Silver
-    run_silver_stream_batch = BashOperator(
-        task_id="execute_silver_stream_sync",
-        bash_command=f"{VENV_PYTHON} {SILVER_JOB_PATH}"
+    # Dynamically add processing steps to your running EMR cluster
+    add_analytics_steps = EmrAddStepsOperator(
+        task_id="add_analytics_steps",
+        job_flow_id="{{ var.value.get('active_emr_cluster_id') }}",
+        steps=SPARK_STEPS,
+        aws_conn_id="aws_default",
     )
 
-    # Task 2: Calculate Gold layer metrics and upsert changes to PostgreSQL
-    run_gold_batch_job = BashOperator(
-        task_id="execute_historical_analytics_sync",
-        bash_command=f"{VENV_PYTHON} {ANALYTICS_JOB_PATH}",
-        # FIX: Explicitly inject environment variables to ensure the worker connects flawlessly
-        env={
-            "AWS_DEFAULT_REGION": "us-east-1",
-            "ENVIRONMENT": "dev"
-        }
+    # Watch the specific steps to guarantee data lineage order and idempotency
+    watch_analytics_steps = EmrStepSensor(
+        task_id="watch_analytics_steps",
+        job_flow_id="{{ var.value.get('active_emr_cluster_id') }}",
+        step_id="{{ task_instance.xcom_pull(task_ids='add_analytics_steps')[1] }}",
+        aws_conn_id="aws_default",
     )
 
-    pipeline_execution_complete = BashOperator(
-        task_id="log_pipeline_completion_status",
-        bash_command="echo 'Medallion pipeline execution completed and synced successfully.'"
-    )
-
-    run_silver_stream_batch >> run_gold_batch_job >> pipeline_execution_complete
+    add_analytics_steps >> watch_analytics_steps

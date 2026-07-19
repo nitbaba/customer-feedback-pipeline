@@ -19,6 +19,12 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Set up Java Runtime Environment (OpenJDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Linting and Testing Suites
         run: |
           python -m pip install --upgrade pip
@@ -38,3 +44,28 @@ jobs:
       - name: Execute PySpark Pipeline Test Matrices
         run: |
           pytest tests/
+  
+  deploy:
+    name: Deploy PySpark Jobs to S3
+    needs: [quality-assurance]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Deploy Scripts to S3 Data Lake
+        run: |
+          aws s3 sync src/jobs/ s3://${{ vars.S3_CODE_BUCKET }}/jobs/ --delete

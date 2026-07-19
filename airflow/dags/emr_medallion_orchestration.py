@@ -7,7 +7,7 @@ from airflow.providers.amazon.aws.operators.emr import (
 )
 from airflow.providers.amazon.aws.sensors.emr import EmrJobFlowSensor
 
-S3_CODE_BUCKET = "s3://customer-feedback-pipeline-dev-lake/code"
+S3_CODE_BUCKET = "s3://customer-feedback-pipeline-dev-lake"
 EMR_EC2_ROLE = "EMR_EC2_DefaultRole"
 EMR_ROLE = "EMR_DefaultRole"
 
@@ -67,7 +67,7 @@ SPARK_STEPS = [
 ]
 
 default_args = {
-    "owner": "devops-data=team",
+    "owner": "devops-data-team",
     "depends_on_past": False,
     "start_date": datetime(2026, 7, 1),
     "email_on_failure": False,
@@ -85,22 +85,19 @@ with DAG(
     tags=["production", "emr", "medallion"],
 ) as dag:
 
-    #create cluster
     create_emr_cluster = EmrCreateJobFlowOperator(
         task_id="create_emr_cluster",
         job_flow_overrides=JOB_FLOW_OVERRIDES,
         aws_conn_id="aws_default",
     )
 
-    #tell active cluster steps
-    add_procession_steps = EmrAddStepsOperator(
+    add_processing_steps = EmrAddStepsOperator(
         task_id="add_processing_steps",
         job_flow_id="{{ task_instance.xcom_pull(task_ids='create_emr_cluster', key='return_value') }}",
-        steps=SPARK_STEPS
+        steps=SPARK_STEPS,
         aws_conn_id="aws_default",
     )
 
-    #sensor to keep Airflow task alive until cluster finishes and terminates
     watch_emr_cluster = EmrJobFlowSensor(
         task_id="watch_emr_cluster",
         job_flow_id="{{ task_instance.xcom_pull(task_ids='create_emr_cluster', key='return_value') }}",
@@ -109,4 +106,4 @@ with DAG(
         timeout=3600,
     )
 
-create_emr_cluster >> add_processing_steps >> watch_emr_cluster
+    create_emr_cluster >> add_processing_steps >> watch_emr_cluster

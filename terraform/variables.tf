@@ -1,7 +1,7 @@
 variable "aws_region" {
     type        = string
     default     = "us-east-1"
-    description = "The tarfet AWS region for deployment"
+    description = "The target AWS region for deployment"
 }
 
 variable "project_name" {
