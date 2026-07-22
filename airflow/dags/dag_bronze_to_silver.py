@@ -57,11 +57,12 @@ with DAG(
 ) as dag:
 
     # Task 1: Submit PySpark job step to EMR Cluster
-    add_step = EmrAddStepsOperator(
-        task_id="add_pyspark_step",
-        job_flow_id=EMR_CLUSTER_ID,
+    add_bronze_to_silver_step = EmrAddStepsOperator(
+        task_id="add_bronze_to_silver_step",
+        job_flow_id="{{ task_instance.xcom_pull(task_ids='create_emr_cluster', key='return_value') }}",  # Or hardcoded ID / Variable: job_flow_id="j-XXXXXXXXXXXX"
         steps=SPARK_STEPS,
         aws_conn_id="aws_default",
+        dag=dag,
     )
 
     # Task 2: Sensor to wait for step execution to complete
@@ -74,4 +75,4 @@ with DAG(
         timeout=3600,
     )
 
-    add_step >> wait_for_step
+    add_bronze_to_silver_step >> wait_for_step
