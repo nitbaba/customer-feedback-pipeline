@@ -52,8 +52,12 @@ def main():
 
     # Configurable paths with S3 fallback support via env vars
     src_dir = os.path.join(project_root, "src")
-    bronze_dir = os.getenv("BRONZE_S3_PATH", os.path.join(project_root, "data_lake", "bronze"))
-    silver_dir = os.getenv("SILVER_S3_PATH", os.path.join(project_root, "data_lake", "silver"))
+    bronze_dir = os.getenv(
+        "BRONZE_S3_PATH", os.path.join(project_root, "data_lake", "bronze")
+    )
+    silver_dir = os.getenv(
+        "SILVER_S3_PATH", os.path.join(project_root, "data_lake", "silver")
+    )
     checkpoint_dir = os.getenv(
         "CHECKPOINT_S3_PATH",
         os.path.join(project_root, "data_lake", "checkpoints", "silver"),
@@ -66,7 +70,9 @@ def main():
     if os.getenv("USE_AWS_SECRETS", "false").lower() == "true":
         try:
             db_credentials = get_secret(secret_name=secret_name, region_name=aws_region)
-            logger.info("Successfully fetched connection details from AWS Secrets Manager.")
+            logger.info(
+                "Successfully fetched connection details from AWS Secrets Manager."
+            )
         except Exception as err:
             logger.warning(f"Could not fetch secret '{secret_name}': {err}")
 
@@ -78,8 +84,7 @@ def main():
         spark_builder = spark_builder.master("local[4]")
 
     spark = (
-        spark_builder
-        .config("spark.pyspark.driver.acceptConnIfUntrusted", "true")
+        spark_builder.config("spark.pyspark.driver.acceptConnIfUntrusted", "true")
         .config("spark.sql.execution.arrow.pyspark.enabled", "true")
         .getOrCreate()
     )
